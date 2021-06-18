@@ -1,0 +1,5 @@
+scikit-image
+numpy
+git+https://github.com/facebookresearch/fvcore
+git+https://github.com/stevewongv/InstanceShadowDetection.git#subdirectory=PythonAPI
+git+https://github.com/facebookresearch/detectron2.git
