@@ -10,9 +10,7 @@ In this paper, we present a new single-stage fully convolutional network archite
 
 [[📄 Paper](https://openaccess.thecvf.com/content/CVPR2021/papers/Wang_Single-Stage_Instance_Shadow_Detection_With_Bidirectional_Relation_Learning_CVPR_2021_paper.pdf)] [[👇🏼 Video](http://www.youtube.com/watch?v=p0b_2SsFypw)]  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1y9UpS5uA1YuoMyvYVzcKL4ltA_FDu_x0?usp=sharing)
 
-[![YouTube](https://cdn.jsdelivr.net/gh/stevewongv/image-hosting@master/20210618/CVPR 2021-video-2364-0001.668t20smqb28.png)](http://www.youtube.com/watch?v=p0b_2SsFypw "Single-Stage Instance Shadow Detection with Bidirectional Relation Learning (CVPR'21 Oral)")
-
-
+[![YouTube](https://cdn.jsdelivr.net/gh/stevewongv/image-hosting@master/20210618/CVPR2021.273zljpaxzpc.jpg)](http://www.youtube.com/watch?v=p0b_2SsFypw)
 
 ## Requirement
 
