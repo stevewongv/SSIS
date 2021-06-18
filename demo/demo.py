@@ -75,7 +75,7 @@ if __name__ == "__main__":
     if os.path.exists(args.output) == False:
         os.mkdir(args.output)
     cfg = setup_cfg(args)
-
+    args.input = [os.path.join(args.input,path) for path in os.listdir(args.input)]
     demo = VisualizationDemo(cfg)
 
     if args.input:
