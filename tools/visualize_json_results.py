@@ -71,7 +71,7 @@ if __name__ == "__main__":
     parser.add_argument("--name", required=True)
     parser.add_argument("--output", required=True,help="output directory")
     parser.add_argument("--dataset", help="name of the dataset", default="soba_cast_shadow_val_full")
-    parser.add_argument("--conf-threshold", default=0.5, type=float, help="confidence threshold")
+    parser.add_argument("--conf-threshold", default=0.3, type=float, help="confidence threshold")
     args = parser.parse_args()
     ins_input = "{}/inference/soba_instances_results.json".format(args.name)
     ass_input = "{}/inference/soba_association_results.json".format(args.name)
