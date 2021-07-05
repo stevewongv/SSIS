@@ -29,7 +29,7 @@ from detectron2.data import MetadataCatalog,DatasetCatalog
 This file contains the default mapping that's applied to "dataset dicts".
 """
 
-__all__ = ["DatasetMapperWithBasis","DatasetMapperWithCopyAndPaste"]
+__all__ = ["DatasetMapperWithBasis"]
 
 logger = logging.getLogger(__name__)
 
