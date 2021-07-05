@@ -20,7 +20,6 @@ from .detection_utils import (annotations_to_instances, build_augmentation,
 
 import cv2
 from skimage import measure
-from .copy_paste import CopyPaste
 from .coco import SobaDetectionCP
 
 from detectron2.data import MetadataCatalog,DatasetCatalog
