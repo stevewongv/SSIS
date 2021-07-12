@@ -93,17 +93,13 @@ class CondInst(nn.Module):
         )
 
         if self.training:
-            loss_mask,loss_asso_mask,asso_offset_losses, loss_maskiou, association_masks_loss  = self._forward_mask_heads_train(proposals, mask_feats, gt_instances)
+            loss_mask,loss_asso_mask,asso_offset_losses  = self._forward_mask_heads_train(proposals, mask_feats, gt_instances)
             losses = {}
             losses.update(sem_losses)
             losses.update(proposal_losses)
             losses.update({"loss_mask": loss_mask})
             losses.update({"loss_asso_mask":loss_asso_mask})
             losses.update({"asso_offset_loss":asso_offset_losses})
-            if loss_maskiou != None:
-                losses.update({"boundary_loss":loss_maskiou})
-            if association_masks_loss != None:
-                losses.update({"asso_boundary_loss":association_masks_loss})
             return losses
         else:
             pred_instances_w_masks = self._forward_mask_heads_test(proposals, mask_feats)
