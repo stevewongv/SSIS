@@ -1,7 +1,6 @@
 // Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <THC/THC.h>
 #include <ATen/cuda/DeviceUtils.cuh>
 #include <ATen/ceil_div.h>
 #include <ATen/cuda/ThrustAllocator.h>
