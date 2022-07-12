@@ -16,7 +16,9 @@ from detectron2.structures import BoxMode
 
 from .augmentation import RandomCropWithInstance
 from .detection_utils import (annotations_to_instances, build_augmentation,
-                              transform_instance_annotations)
+                              transform_instance_annotations, filter_empty_instances)
+
+from scipy.ndimage import distance_transform_edt
 
 import cv2
 from skimage import measure
@@ -183,8 +185,16 @@ class DatasetMapperWithBasis(DatasetMapper):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
+            if self.is_train:
+                if np.random.rand() > 0.5 and len(annos)<10:
+                    annos, image = self.double_object(annos,image)
+                    dataset_dict["image"] = torch.as_tensor(
+                        np.ascontiguousarray(image.transpose(2, 0, 1))
+                    )
+                annos = self.add_distance_map(annos)
+                
             instances = annotations_to_instances(
-                annos, image_shape, mask_format='bitmask'#self.instance_mask_format
+                annos, image_shape, mask_format='bitmask'
             )
 
             # After transforms such as cropping are applied, the bounding box may no longer
@@ -193,7 +203,7 @@ class DatasetMapperWithBasis(DatasetMapper):
             # bounding box of the cropped triangle should be [(1,0),(2,1)], which is not equal to
             if self.recompute_boxes:
                 instances.gt_boxes = instances.gt_masks.get_bounding_boxes()
-            dataset_dict["instances"] = utils.filter_empty_instances(instances)
+            dataset_dict["instances"] = filter_empty_instances(instances)
 
         if self.basis_loss_on and self.is_train:
             # load basis supervisions
@@ -216,4 +226,134 @@ class DatasetMapperWithBasis(DatasetMapper):
             basis_sem_gt = torch.as_tensor(basis_sem_gt.astype("long"))
             dataset_dict["basis_sem"] = basis_sem_gt
         return dataset_dict
+    
+    def add_distance_map(self, annos):
+        masks = [anno['segmentation'] for anno in annos]
+        distance_maps = []
+        for mask in masks:
+            distance_map = distance_transform_edt(mask)
+            distance_map = mask - distance_map / (np.max(distance_map)+1e-7)
+            distance_maps.append(distance_map)
+        for i, distance_map in enumerate(distance_maps):
+            annos[i]['dismap'] = distance_map
+        
+        return annos
+
+    def double_object(self, annos, image):
+        
+        def object_shift(mask,w,h,shadow,img,fullmask):
+            length = h if h < w else w
+            shift_x = int((np.random.rand() - 0.5) * 2 * length /1.5)
+            shift_x = shift_x if shift_x != 0 else 10
+            shift_y = int((np.random.rand()+0.1) * length /1.5 )
+            shift_y = shift_y if shift_y != 0 else 10
+            obj = img * mask[:,:,None].repeat(3,axis=2)
+            
+            obj = mask_shift(obj, -shift_x, -shift_y)
+            obj_mask = mask_shift(mask,-shift_x, -shift_y)
+            
+            obj *= 1 - (mask)[:,:,None].repeat(3,axis=2)
+            obj_mask *= 1- (mask)
+            
+            shadow_region = shadow[:,:,None].repeat(3,axis=2)*img
+            shadow_average = shadow_region.sum(axis=(0,1)) / shadow.sum()
+            shadow_remap = shadow
+            if shadow_average.min() < 80:
+                shadow_remap = (shadow_region < shadow_average+30) * shadow[:,:,None].repeat(3,axis=2)
+                shadow_remap = np.clip(shadow_remap.sum(2),0,1)
+                shadow_region = shadow_remap[:,:,None].repeat(3,axis=2)*img
+                shadow_average =  shadow_region.sum(axis=(0,1)) / shadow_remap.sum()
+            shadow_mask = mask_shift(shadow_remap,-shift_x, -shift_y)
+            shadow_mask *= 1- (mask+shadow)
+            shadow_mask = (shadow_mask*(1-fullmask))[:,:,None].repeat(3,axis=2)
+            shadow_shift = shadow_mask * img
+            shift_average = shadow_shift.sum(axis=(0,1)) / (shadow_mask.sum() /3 + 0.000001)
+            shadow_shift =  shadow_shift /  (shift_average+ 0.0000001) * (  shadow_average )
+            res = img * (1-obj_mask[:,:,None]) + obj
+            res = shadow_shift.astype('uint8') * shadow_mask + (1-shadow_mask) * res
+            return res.astype('uint8') , obj_mask>0, shadow_mask[:,:,0]>0
+                    
+        def mask_shift(mask,y,x):
+            padding = abs(x) if abs(x) > abs(y) else abs(y)
+            h,w = mask.shape[:2]
+            if len(mask.shape) == 2:
+                res = np.pad(mask, ((padding,padding),(padding,padding)))
+            else:
+                res = np.pad(mask, ((padding,padding),(padding,padding),(0,0)))
+            res = res[padding-x:padding-x+h,padding-y:padding-y+w]
+            return  res
+
+        masks = [anno['segmentation'] for anno in annos]
+        bboxs = [anno['bbox'] for anno in annos]
+        obj_num = int(len(masks)/2)
+        random_num = 1
+        nums = np.arange(obj_num)
+        np.random.shuffle(nums)
+        random_nums = nums[:random_num]
+        count = 0
+        for random_obj1 in random_nums:
+            
+            shadow = random_obj1 + obj_num 
+            h1,w1 = bboxs[random_obj1][3] - bboxs[random_obj1][1], bboxs[random_obj1][2] - bboxs[random_obj1][0]
+            full_mask = np.clip(np.array(masks).sum(0),0,1)
+            
+            image, obj_mask,sha_mask = object_shift(masks[random_obj1],w1,h1, masks[shadow], image, full_mask)
+            sha_mask_small = sha_mask[1::2,1::2]
+            obj_mask_small = obj_mask[1::2,1::2]
+            if sha_mask_small.sum() > 300 and obj_mask_small.sum() > 300:
+                new_obj = {
+                    'iscrowd': 0,
+                    'category_id': 0,
+                    'association': obj_num+1,
+                    'segmentation': obj_mask,
+                    'bbox': BoxMode.convert(maskUtils.toBbox(maskUtils.encode(np.array(obj_mask[:,:,None], order='F',dtype='uint8'))[0])[None], BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)[0],
+                    'bbox_mode': annos[0]['bbox_mode'],
+                    'light': maskUtils.toBbox(maskUtils.encode(np.array(sha_mask[:,:,None], order='F',dtype='uint8'))[0])
+                }
+                new_obj_sha = {
+                    'iscrowd': 0,
+                    'category_id': 1,
+                    'association': obj_num+1,
+                    'segmentation': sha_mask,
+                    'bbox': BoxMode.convert(maskUtils.toBbox(maskUtils.encode(np.array(sha_mask[:,:,None], order='F',dtype='uint8'))[0])[None], BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)[0],
+                    'bbox_mode': annos[0]['bbox_mode'], 
+                    'light': maskUtils.toBbox(maskUtils.encode(np.array(obj_mask[:,:,None], order='F',dtype='uint8'))[0])
+                }
+                for i, mask in enumerate(masks):
+                    if i != random_obj1:
+                        mask = mask * (1 - obj_mask)
+                        annos[i]['segmentation'] = mask
+                        mask = maskUtils.encode(np.array(mask[:,:,None], order='F',dtype='uint8'))
+                        annos[i]['bbox'] = BoxMode.convert(maskUtils.toBbox(mask[0])[None], BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)[0]
+                annos.insert(obj_num,new_obj)
+                annos.append(new_obj_sha)
+                obj_num+=1
+                for i in range(obj_num*2):
+                    if i < obj_num:
+                        box = annos[i+obj_num]['bbox']
+                        annos[i]['relation'] = np.array([box[2]/2+box[0]/2,box[3]/2+box[1]/2])
+                    else:
+                        box = annos[i-obj_num]['bbox']
+                        annos[i]['relation'] = np.array([box[2]/2+box[0]/2,box[3]/2+box[1]/2])
+                masks = [anno['segmentation'] for anno in annos]
+                
+                count += 1
+            else:
+                for i, mask in enumerate(masks):
+                    if i != random_obj1:
+                        mask = mask * (1 - obj_mask)
+                        annos[i]['segmentation'] = mask
+                        mask = maskUtils.encode(np.array(mask[:,:,None], order='F',dtype='uint8'))
+                        annos[i]['bbox'] = BoxMode.convert(maskUtils.toBbox(mask[0])[None], BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)[0]
+                for i in range(obj_num*2):
+                    if i < obj_num:
+                        box = annos[i+obj_num]['bbox']
+                        annos[i]['relation'] = np.array([box[2]/2+box[0]/2,box[3]/2+box[1]/2])
+                    else:
+                        box = annos[i-obj_num]['bbox']
+                        annos[i]['relation'] = np.array([box[2]/2+box[0]/2,box[3]/2+box[1]/2])
+            
+            
+        return annos, image
+        
 

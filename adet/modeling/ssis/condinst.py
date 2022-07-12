@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+from unittest import result
 
 import torch
 from torch import nn
@@ -93,14 +94,18 @@ class CondInst(nn.Module):
         )
 
         if self.training:
-            loss_mask,loss_asso_mask,asso_offset_losses  = self._forward_mask_heads_train(proposals, mask_feats, gt_instances)
+            loss_mask,loss_asso_mask,asso_offset_losses, loss_maskiou, boundary_loss  = self._forward_mask_heads_train(proposals, mask_feats, gt_instances)
             losses = {}
             losses.update(sem_losses)
             losses.update(proposal_losses)
             losses.update({"loss_mask": loss_mask})
             losses.update({"loss_asso_mask":loss_asso_mask})
             losses.update({"asso_offset_loss":asso_offset_losses})
-            return losses
+            if loss_maskiou != None:
+                losses.update({"maskiou_loss":loss_maskiou})
+            if boundary_loss != None:
+                losses.update({"boundary_loss":boundary_loss})
+            return losses            
         else:
             pred_instances_w_masks = self._forward_mask_heads_test(proposals, mask_feats)
 
@@ -170,6 +175,7 @@ class CondInst(nn.Module):
             if isinstance(per_im_gt_inst.get("gt_masks"), PolygonMasks):
                 polygons = per_im_gt_inst.get("gt_masks").polygons
                 per_im_bitmasks = []
+                per_im_bitmasks_small = []
                 per_im_bitmasks_full = []
                 for per_polygons in polygons:
                     bitmask = polygons_to_bitmask(per_polygons, im_h, im_w)
@@ -177,15 +183,21 @@ class CondInst(nn.Module):
                     start = int(self.mask_out_stride // 2)
                     bitmask_full = bitmask.clone()
                     bitmask = bitmask[start::self.mask_out_stride, start::self.mask_out_stride]
+                    start = int(self.mask_out_stride*4 // 2)
+                    bitmask_small = bitmask[start::self.mask_out_stride*4, start::self.mask_out_stride*4]
 
                     assert bitmask.size(0) * self.mask_out_stride == im_h
                     assert bitmask.size(1) * self.mask_out_stride == im_w
+                    assert bitmask_small.size(0) * self.mask_out_stride*4 == im_h
+                    assert bitmask_small.size(1) * self.mask_out_stride*4 == im_w
 
                     per_im_bitmasks.append(bitmask)
                     per_im_bitmasks_full.append(bitmask_full)
+                    per_im_bitmasks_small.append(bitmask_small)
 
                 per_im_gt_inst.gt_bitmasks = torch.stack(per_im_bitmasks, dim=0)
                 per_im_gt_inst.gt_bitmasks_full = torch.stack(per_im_bitmasks_full, dim=0)
+                per_im_gt_inst.gt_bitmasks_small = torch.stack(per_im_bitmasks_small, dim=0)
             else: # RLE format bitmask
                 bitmasks = per_im_gt_inst.get("gt_masks").tensor
                 h, w = bitmasks.size()[1:]
@@ -194,6 +206,9 @@ class CondInst(nn.Module):
                 bitmasks = bitmasks_full[:, start::self.mask_out_stride, start::self.mask_out_stride]
                 per_im_gt_inst.gt_bitmasks = bitmasks
                 per_im_gt_inst.gt_bitmasks_full = bitmasks_full
+                gt_dismaps = per_im_gt_inst.get("gt_dismaps")
+                per_im_gt_inst.gt_dismaps = F.max_pool2d(F.pad(gt_dismaps,(0, im_w - w, 0, im_h - h), "constant", 0),2,2)
+
 
     def postprocess(self, results, output_height, output_width, padded_im_h, padded_im_w, mask_threshold=0.5):
         """
@@ -224,7 +239,7 @@ class CondInst(nn.Module):
                     union = torch.logical_or(m_1,m_2).sum()
                     iou[n_1,n_2] = intersect.true_divide(union)
             return iou
-
+        
         scale_x, scale_y = (output_width / results.image_size[1], output_height / results.image_size[0])
         resized_im_h, resized_im_w = results.image_size
         
@@ -241,6 +256,7 @@ class CondInst(nn.Module):
         results = results[output_boxes.nonempty()]
 
         if results.has("pred_global_masks"):
+            # resize the masks to the original results
             mask_h, mask_w = results.pred_global_masks.size()[-2:]
             factor_h = padded_im_h // mask_h
             factor_w = padded_im_w // mask_w
@@ -269,21 +285,34 @@ class CondInst(nn.Module):
             pred_asso_global_masks = pred_asso_global_masks[:, 0, :, :]
             pred_global_masks = (pred_global_masks > mask_threshold).float()
             asso_pred_masks = (pred_asso_global_masks > mask_threshold + 0.1 ).float()
-
-            mask_ious = mask_iou(asso_pred_masks,pred_global_masks)
+            
+            # compute the mask iou between predicted association masks and predicted object/shadow masks
+            mask_ious = mask_iou((results.pred_asso_global_masks[:, 0, :, :]> mask_threshold+0.1).float(),(results.pred_global_masks[:, 0, :, :]> mask_threshold).float())
             
             pred_class = results.pred_classes.float().cpu()
             pred_asso_class = (1 - pred_class)
-        
+
             class_map = torch.mm(pred_class[:,None],pred_asso_class[None]) + torch.mm(pred_asso_class[:,None],pred_class[None])
-            mask_ious *= class_map
-            ious,inds = (mask_ious * (mask_ious>0.5)).max(1)
+            diff_map = 1 - class_map
+            diff_ious = mask_ious * diff_map
+
+            for i,ious in enumerate(diff_ious):
+                inds = (ious > 0.5).nonzero().squeeze(1)
+                for ind in inds:
+                    if results.scores[i] > results.scores[ind]:
+                        results.scores[ind] *= 0.1
+                    else:
+                        results.scores[i] *= 0.1
             
+            mask_ious *= class_map
+            ious,inds = (mask_ious * (mask_ious>0.4)).max(1)
+            
+            # matching pairs 
             ious = ious != 0
             
             pairs = []
             record = {}
-        
+
             for i,ind in enumerate(inds.numpy()):
                 if ind not in record and i not in record and ious[i]:
                     record[ind] = i
@@ -293,15 +322,14 @@ class CondInst(nn.Module):
                         record.pop(record[ind])
                         record.pop(ind)
                         record[ind] = i
-                        record[i] = ind
+                        record[i] = ind                   
                 elif  i in record and ious[i]:
                     if results.scores[ind] > results.scores[record[i]]:
                         record.pop(record[i])
                         record.pop(i)
                         record[ind] = i
                         record[i] = ind
-
-
+        
             for k,v in record.items():
                 if k > v:
                     pairs.append((v,k))
@@ -309,9 +337,9 @@ class CondInst(nn.Module):
                     pairs.append((k,v))
             pairs = list(set(pairs))
 
+            # reformat results
             pairs_inds = []
             pred_associations = []
-
             asso_mask = []
             asso_bbox = []
             asso_score = []
@@ -321,6 +349,8 @@ class CondInst(nn.Module):
                 pairs_inds+=list(pair)
                 pred_associations += [i+1]*2
                 m,n = pair
+                
+                results.scores[n] = (results.scores[n] + results.scores[m])/2
                 segm = (pred_global_masks[m]+pred_global_masks[n]>mask_threshold).float().cpu().numpy()
                 asso_mask.append(segm)
                 segm = segm[:,:,None]
@@ -329,16 +359,16 @@ class CondInst(nn.Module):
                 asso_class.append(0)
                 asso_score.append(((results.scores[m]+results.scores[n])/2.0).cpu().numpy())
                 asso_rela.append(i+1)
-                
+                   
             pairs_inds = torch.tensor(pairs_inds).to(torch.int64)
             pred_global_masks = pred_global_masks.cpu()
             final_results = Instances((output_height, output_width))
             final_results.pred_masks = pred_global_masks[pairs_inds]
             final_results.pred_classes = results.pred_classes[pairs_inds]
-            # 
+            
             pred_global_masks =  [mask.numpy() for mask in pred_global_masks[pairs_inds]]
             
-            final_results.pred_boxes = results.pred_boxes[pairs_inds]#Boxes(torch.cat(pred_boxes))
+            final_results.pred_boxes = results.pred_boxes[pairs_inds]
             final_results.scores = results.scores[pairs_inds]
             
             final_results.pred_associations = pred_associations
@@ -358,5 +388,5 @@ class CondInst(nn.Module):
             pred_associations.pred_classes = np.array(asso_class)
             pred_associations.scores = np.array(asso_score)
 
-            return final_results,pred_associations
+        return final_results,pred_associations
         
