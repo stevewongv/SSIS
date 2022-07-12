@@ -1,6 +1,6 @@
 _BASE_: "Base-SSIS.yaml"
 MODEL:
-  WEIGHTS: "../tools/output/SSIS_MS_R_101_bifpn_with_offset_class/model_final.pth"
+  WEIGHTS: "../tools/output/SSIS_MS_R_101_bifpn_with_offset_class/model_ssis_final.pth"
   BACKBONE:
     NAME: "build_fcos_resnet_bifpn_backbone"
   RESNETS:
