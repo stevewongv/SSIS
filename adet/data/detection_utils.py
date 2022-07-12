@@ -9,6 +9,9 @@ from detectron2.data.detection_utils import \
 from detectron2.data.detection_utils import \
     transform_instance_annotations as d2_transform_inst_anno
 
+from detectron2.structures import (
+    BitMasks
+)
 
 def transform_instance_annotations(
     annotation, transforms, image_size, *, keypoint_hflip_indices=None
@@ -80,8 +83,42 @@ def annotations_to_instances(annos, image_size, mask_format="polygon"):
     if "relation" in annos[0]:
         relations  = [obj.get("relation",[]) for obj in annos]
         instance.gt_relations = torch.as_tensor(relations, dtype=torch.float32)
+    if "dismap" in annos[0]:
+        dismaps =  [obj.get("dismap",[]) for obj in annos]
+        instance.gt_dismaps = torch.stack([torch.as_tensor(np.ascontiguousarray(x), dtype=torch.float32) for x in dismaps])
     return instance
 
+
+def filter_empty_instances(instances, by_box=True, by_mask=True, box_threshold=1e-5):
+    """
+    Filter out empty instances in an `Instances` object.
+    Args:
+        instances (Instances):
+        by_box (bool): whether to filter out instances with empty boxes
+        by_mask (bool): whether to filter out instances with empty masks
+        box_threshold (float): minimum width and height to be considered non-empty
+    Returns:
+        Instances: the filtered instances.
+    """
+    assert by_box or by_mask
+    r = []
+    if by_box:
+        r.append(instances.gt_boxes.nonempty(threshold=box_threshold))
+    if instances.has("gt_masks") and by_mask:
+        r.append(instances.gt_masks.nonempty() & (instances.gt_masks.tensor.sum(1).sum(1) > 20.0))
+
+    # TODO: can also filter visible keypoints
+
+    if not r:
+        return instances
+    m = r[0]
+    for x in r[1:]:
+        m = m & x
+    half_len = int(len(m)/2)
+    m[:half_len] &= m[half_len:]
+    m[half_len:] &= m[:half_len]
+
+    return instances[m]
 
 def build_augmentation(cfg, is_train):
     """
