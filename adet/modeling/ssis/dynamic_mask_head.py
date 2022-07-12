@@ -298,7 +298,7 @@ class DynamicMaskHead(nn.Module):
             mask_iou = self.maskiou_head((mask_logits.sigmoid()>0.5).float(),mask_feats[im_inds].reshape(n_inst, self.in_channels, H , W))
             asso_mask_iou = self.maskiou_head((asso_mask_logits.sigmoid()>0.5).float(),mask_feats[im_inds].reshape(n_inst, self.in_channels, H , W))
         else:
-            mask_iou = None:
+            mask_iou = None
             asso_mask_iou = None
 
         assert mask_feat_stride >= self.mask_out_stride
