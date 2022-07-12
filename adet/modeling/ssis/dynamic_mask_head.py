@@ -390,7 +390,7 @@ class DynamicMaskHead(nn.Module):
                     mask_scores, asso_mask_scores,_,_,boun_score,asso_boun_score = self.mask_heads_forward_with_coords(
                         mask_feats, mask_feat_stride, pred_instances
                     )
-                    if self.boundary_loss
+                    if self.boundary_loss:
                         # thick boudary loss
                         boundary_loss = dice_coefficient(boun_score, (gt_dismaps>0.5).float()).mean() + dice_coefficient(asso_boun_score, (gt_asso_dismaps>0.5).float()).mean()
                         
