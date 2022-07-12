@@ -52,9 +52,9 @@ from adet.evaluation import SOBAEvaluator
 
 # from detectron2.data.datasets import register_coco_instances
 from adet.data.datasets import register_soba_instances
-register_soba_instances("soba_cast_shadow_train_full", {}, "../../dataset/SOBA/annotations/SOBA_train_relation.json", "../../dataset/SOBA/SOBA/")
-register_soba_instances("soba_cast_shadow_val_full",{},"../../dataset/SOBA/annotations/SOBA_val.json","../../dataset/SOBA/SOBA/")
-
+register_soba_instances("soba_cast_shadow_train_full", {}, "../../dataset/SOBA/annotations/SOBA_train_relation_v2.json", "../../dataset/SOBA/SOBA/")
+register_soba_instances("soba_cast_shadow_val_full",{},"../../dataset/SOBA/annotations/SOBA_val_v2.json","../../dataset/SOBA/SOBA/")
+register_soba_instances("soba_cast_shadow_val_challenge",{},"../../dataset/SOBA/annotations/SOBA_challenge_v2.json","../../dataset/SOBA/SOBA/")
 
 
 
