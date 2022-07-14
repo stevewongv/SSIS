@@ -34,7 +34,7 @@ $ python setup.py build develop
 | Method | SOAP mask  | SOAP bbox  | mask AP | box AP |
 | :-----:| :--------: | :--------: |:------: |:-----: |
 | [LISA](https://github.com/stevewongv/InstanceShadowDetection) | 23.5     | 21.9       | 39.2    | 37.6   |
-| **SSIS** | 30.2     | 27.1       | 43.6    | 41.3   |
+| **SSIS** | 30.2     | 27.1       | 43.5    | 41.3   |
 |**SSISv2**| 35.3     | 29.0       | 50.2    | 44.4   |
 
 ### Performance on SOBA-challenge set
@@ -67,7 +67,7 @@ $ python train_net.py \
 # SSISv2 requires more GPU memory. We trained it on RTX 3090
 $ cd tools
 $ python train_net.py \
-    --config-file ../configs/SSIS/MS_R_101_BiFPN_with_offset_class.yaml \
+    --config-file ../configs/SSIS/MS_R_101_BiFPN_SSISv2.yaml \
     --num-gpus 1
 ``` 
 
