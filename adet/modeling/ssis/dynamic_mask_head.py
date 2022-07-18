@@ -290,6 +290,8 @@ class DynamicMaskHead(nn.Module):
             asso_mask_logits = asso_mask_logits.reshape(-1, 2, H, W)
             boundary_logits = mask_logits[:,1:2] 
             asso_boundary_logits = asso_mask_logits[:,1:2] 
+            mask_logits = mask_logits[:,0:1] 
+            asso_mask_logits = asso_mask_logits[:,0:1]
         else:
             mask_logits = mask_logits.reshape(-1, 1, H, W)
             asso_mask_logits = asso_mask_logits.reshape(-1, 1, H, W)
