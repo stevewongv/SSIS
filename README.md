@@ -81,8 +81,8 @@ $ python SOAP.py --path PATH_TO_YOUR_DATASET/SOBA \
     --input-name ./output/SSIS_MS_R_101_bifpn_with_offset_class
 # SSISv2
 $ python train_net.py \
-    --config-file ../configs/SSIS/MS_R_101_BiFPN_ssisv2.yaml \
-    --num-gpus 2 --resume --eval-only
+    --config-file ../configs/SSIS/MS_R_101_BiFPN_SSISv2.yaml \
+    --num-gpus 1 --resume --eval-only
 $ python SOAP.py --path PATH_TO_YOUR_DATASET/SOBA \ 
     --input-name ./output/SSISv2_MS_R_101_bifpn_with_offset_class_maskiouv2_da_bl
 ``` 
