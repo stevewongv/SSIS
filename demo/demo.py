@@ -38,7 +38,7 @@ def get_parser():
     parser = argparse.ArgumentParser(description="Detectron2 Demo")
     parser.add_argument(
         "--config-file",
-        default="../configs/SSIS/MS_R_101_BiFPN_with_offset_class_demo.yaml",
+        default="../configs/SSIS/MS_R_101_BiFPN_SSISv2_demo.yaml",
         metavar="FILE",
         help="path to config file",
     )
