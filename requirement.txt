@@ -1,6 +1,6 @@
 scikit-image
 numpy
-kornia
+kornia==0.5.6
 pycocotools
 git+https://github.com/stevewongv/InstanceShadowDetection.git#subdirectory=PythonAPI
 git+https://github.com/facebookresearch/detectron2.git
