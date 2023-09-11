@@ -9,7 +9,7 @@ import numpy as np
 import os
 import pickle
 from collections import OrderedDict
-import pysobatools.mask as mask_util
+import pycocotools.mask as mask_util
 import torch
 from fvcore.common.file_io import PathManager
 from pysobatools.soba import SOBA
