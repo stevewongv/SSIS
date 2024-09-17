@@ -372,9 +372,9 @@ class DynamicMaskHead(nn.Module):
                     
                     if self.iter > 10000:
                         # thin boudary loss
-                        boundary_loss += (torch.abs(torch.abs(kornia.filters.laplacian((mask_scores>0.5).float(), kernel_size)) - torch.abs(kornia.filters.laplacian(gt_bitmasks,kernel_size))).sum([2,3]) / ((torch.abs(kornia.filters.laplacian(gt_bitmasks,kernel_size)) > 0).float().sum([2,3])).mean()+ + 1e-7) * 5
+                        boundary_loss += (torch.abs(torch.abs(kornia.filters.laplacian((mask_scores>0.5).float(), kernel_size)) - torch.abs(kornia.filters.laplacian(gt_bitmasks,kernel_size))).mean() / ((torch.abs(kornia.filters.laplacian(gt_bitmasks,kernel_size)) > 0).float()).mean()+  1e-7) * 5
 
-                        boundary_loss += (torch.abs(torch.abs(kornia.filters.laplacian((asso_mask_scores>0.5).float(),kernel_size)) - torch.abs(kornia.filters.laplacian(gt_asso_masks,kernel_size))).sum([2,3]) / ((torch.abs(kornia.filters.laplacian(gt_asso_masks,kernel_size)) > 0).float().sum([2,3])).mean()+ + 1e-7) * 5
+                        boundary_loss += (torch.abs(torch.abs(kornia.filters.laplacian((asso_mask_scores>0.5).float(),kernel_size)) - torch.abs(kornia.filters.laplacian(gt_asso_masks,kernel_size))).mean() / ((torch.abs(kornia.filters.laplacian(gt_asso_masks,kernel_size)) > 0).float()).mean()+ 1e-7) * 5
 
                     mask_losses = dice_coefficient(mask_scores, gt_bitmasks).mean() 
                     
