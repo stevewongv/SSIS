@@ -17,7 +17,7 @@ from .dynamic_mask_head import build_dynamic_mask_head
 from .mask_branch import build_mask_branch
 
 from adet.utils.comm import aligned_bilinear
-import pysobatools.sobaeval as eval
+import pycocotools.mask as maskUtils
 from detectron2.structures import Boxes, BoxMode, Instances
 import numpy as np
 
@@ -28,11 +28,11 @@ logger = logging.getLogger(__name__)
 
 
 def decode(segm):
-    return eval.maskUtils.decode(segm).astype('uint8')
+    return maskUtils.decode(segm).astype('uint8')
 
 
 def encode(segm):
-    return eval.maskUtils.encode(segm)
+    return maskUtils.encode(segm)
 
 @META_ARCH_REGISTRY.register()
 class CondInst(nn.Module):
@@ -355,7 +355,7 @@ class CondInst(nn.Module):
                 asso_mask.append(segm)
                 segm = segm[:,:,None]
                 segm = encode(np.array(segm,order='F',dtype='uint8'))[0]
-                asso_bbox.append(BoxMode.convert(eval.maskUtils.toBbox(segm)[None], BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)[0])
+                asso_bbox.append(BoxMode.convert(maskUtils.toBbox(segm)[None], BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)[0])
                 asso_class.append(0)
                 asso_score.append(((results.scores[m]+results.scores[n])/2.0).cpu().numpy())
                 asso_rela.append(i+1)
